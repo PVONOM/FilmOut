@@ -47,7 +47,7 @@ public sealed class SerialTrigger : IDisposable
     {
         try { _outgoing.TryAdd(line); }
         catch (InvalidOperationException) { /* closing */ }
-        catch (ObjectDisposedException) { /* closed */ }
+        //catch (ObjectDisposedException) { /* closed */ }
     }
 
     public void Dispose()

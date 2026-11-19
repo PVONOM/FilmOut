@@ -5,6 +5,7 @@
     <!-- WPF is used only for its WIC-based image decoders (16-bit TIFF and PNG). -->
     <UseWPF>true</UseWPF>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Vortice.Direct3D11" Version="3.8.2" />

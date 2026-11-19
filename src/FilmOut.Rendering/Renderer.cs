@@ -4,6 +4,7 @@ using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 using Vortice.Mathematics;
+using System.IO;
 
 namespace FilmOut.Rendering;
 

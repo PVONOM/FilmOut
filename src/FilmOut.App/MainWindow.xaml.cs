@@ -12,6 +12,7 @@ using FilmOut.App.Controls;
 using FilmOut.Core;
 using FilmOut.Rendering;
 using Microsoft.Win32;
+using System.IO;
 
 namespace FilmOut.App;
 
