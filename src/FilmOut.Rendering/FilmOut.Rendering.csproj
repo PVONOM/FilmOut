@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>FilmOut.Rendering</RootNamespace>
+    <!-- WPF is used only for its WIC-based image decoders (16-bit TIFF and PNG). -->
+    <UseWPF>true</UseWPF>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Vortice.Direct3D11" Version="3.8.2" />
+    <PackageReference Include="Vortice.DXGI" Version="3.8.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Shaders\Pipeline.hlsl" LogicalName="FilmOut.Rendering.Pipeline.hlsl" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FilmOut.Core\FilmOut.Core.csproj" />
+  </ItemGroup>
+</Project>

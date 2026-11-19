@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="src/FilmOut.Core/FilmOut.Core.csproj" />
+  <Project Path="src/FilmOut.Rendering/FilmOut.Rendering.csproj" />
+  <Project Path="src/FilmOut.App/FilmOut.App.csproj" />
+</Solution>

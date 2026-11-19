@@ -1,0 +1,356 @@
+<Window x:Class="FilmOut.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="FilmOut" Width="1460" Height="940" MinWidth="1120" MinHeight="720"
+        WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <Style x:Key="NumberBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="Width" Value="80"/>
+            <Setter Property="TextAlignment" Value="Right"/>
+            <EventSetter Event="KeyDown" Handler="Number_KeyDown"/>
+            <EventSetter Event="LostFocus" Handler="Number_LostFocus"/>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel>
+        <!-- Job and output display -->
+        <Border DockPanel.Dock="Top" Padding="16,10" BorderBrush="{StaticResource RuleBrush}" BorderThickness="0,0,0,1">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                    <TextBlock Text="Output display" Style="{StaticResource FieldLabel}"/>
+                    <ComboBox x:Name="OutputCombo" Width="400"/>
+                    <Button x:Name="StartOutputButton" Content="Start output" Margin="8,0,0,0" Click="StartOutput_Click"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <Button x:Name="OpenFolderButton" Content="Open job folder…" Click="OpenFolder_Click"/>
+                    <Button x:Name="ReloadButton" Content="Reload images" Margin="8,0,0,0" Click="Reload_Click"
+                            ToolTip="Read the image files again, after changing them on disk"/>
+                    <TextBlock x:Name="JobPathText" Margin="16,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                               Style="{StaticResource Hint}" Text="No job open"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Exposure readout: what the camera needs to cover -->
+        <Border DockPanel.Dock="Top" Padding="16,14" BorderBrush="{StaticResource RuleBrush}" BorderThickness="0,0,0,1">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" VerticalAlignment="Bottom">
+                    <TextBlock x:Name="OutputStatusText" Style="{StaticResource Hint}" TextAlignment="Right" HorizontalAlignment="Right" Text="Output not started"/>
+                    <TextBlock x:Name="RefreshText" Style="{StaticResource Hint}" TextAlignment="Right" HorizontalAlignment="Right"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <StackPanel Margin="0,0,56,0">
+                        <TextBlock Text="Shortest exposure" Style="{StaticResource Hint}"/>
+                        <TextBlock x:Name="MinTimeText" Text="—" Style="{StaticResource Readout}"/>
+                        <TextBlock x:Name="MinTimeDetail" Style="{StaticResource Hint}"/>
+                    </StackPanel>
+                    <StackPanel Margin="0,0,56,0">
+                        <TextBlock Text="Longest exposure" Style="{StaticResource Hint}"/>
+                        <TextBlock x:Name="MaxTimeText" Text="—" Style="{StaticResource Readout}"/>
+                        <TextBlock x:Name="MaxTimeDetail" Style="{StaticResource Hint}"/>
+                    </StackPanel>
+                    <StackPanel Margin="0,0,56,0">
+                        <TextBlock Text="Range" Style="{StaticResource Hint}"/>
+                        <TextBlock x:Name="RangeText" Text="—" Style="{StaticResource Readout}"/>
+                        <TextBlock x:Name="RangeDetail" Style="{StaticResource Hint}"/>
+                    </StackPanel>
+                    <StackPanel>
+                        <TextBlock Text="Total exposure" Style="{StaticResource Hint}"/>
+                        <TextBlock x:Name="TotalText" Text="—" Style="{StaticResource Readout}"/>
+                        <TextBlock x:Name="TotalDetail" Style="{StaticResource Hint}"/>
+                    </StackPanel>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Padding="16,6" BorderBrush="{StaticResource RuleBrush}" BorderThickness="0,1,0,0">
+            <TextBlock x:Name="StatusText" Style="{StaticResource Hint}" MaxWidth="10000" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
+        </Border>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="460" MinWidth="320"/>
+                <ColumnDefinition Width="6"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <DockPanel Grid.Column="0" Margin="16,12,4,12">
+                <TextBlock x:Name="WarningsText" DockPanel.Dock="Top" Style="{StaticResource Hint}"
+                           Foreground="{StaticResource WarningBrush}" Margin="0,0,0,8" Visibility="Collapsed"/>
+                <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource Hint}" Margin="0,8,0,0"
+                           Text="Select several images (Shift or Ctrl) to change their times together or paste one grade to all of them."/>
+                <ListView x:Name="ImageList" SelectionMode="Extended" SelectionChanged="ImageList_SelectionChanged">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="#" Width="50" DisplayMemberBinding="{Binding Position}"/>
+                            <GridViewColumn Header="File" Width="170" DisplayMemberBinding="{Binding FileName}"/>
+                            <GridViewColumn Header="Time (s)" Width="76" DisplayMemberBinding="{Binding TimeText}"/>
+                            <GridViewColumn Header="Frames" Width="64" DisplayMemberBinding="{Binding FramesText}"/>
+                            <GridViewColumn Header="Notes" Width="150" DisplayMemberBinding="{Binding Flags}"/>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </DockPanel>
+
+            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="Transparent"/>
+
+            <TabControl x:Name="Tabs" Grid.Column="2" Margin="4,12,16,12">
+
+                <!-- Image -->
+                <TabItem x:Name="ImageTab" Header="Image">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="ImagePanel" Margin="12,10,12,24" MaxWidth="1000" HorizontalAlignment="Left">
+                            <TextBlock x:Name="ImageTitle" FontSize="22" Text="No image selected"/>
+                            <TextBlock x:Name="ImageSubtitle" Style="{StaticResource Hint}"/>
+
+                            <TextBlock Text="Display time" Style="{StaticResource SectionTitle}"/>
+                            <WrapPanel>
+                                <TextBox x:Name="TimeBox" Width="110" TextAlignment="Right" KeyDown="TimeBox_KeyDown" LostFocus="TimeBox_LostFocus"/>
+                                <TextBlock Text="seconds" Style="{StaticResource FieldLabel}" Margin="8,0,20,0"/>
+                                <Button Content="−1 stop" Tag="-stop" Click="TimeStep_Click"/>
+                                <Button Content="−1 point" Tag="-pt" Click="TimeStep_Click" Margin="6,0,0,0"/>
+                                <Button Content="+1 point" Tag="+pt" Click="TimeStep_Click" Margin="6,0,0,0"/>
+                                <Button Content="+1 stop" Tag="+stop" Click="TimeStep_Click" Margin="6,0,0,0"/>
+                            </WrapPanel>
+                            <TextBlock x:Name="TimeInfo" Style="{StaticResource Hint}" Margin="0,8,0,0"/>
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0"
+                                       Text="Display time is the exposure: twice the time is one stop more, and one printer point is about 6% longer. The step buttons change every selected image."/>
+                            <WrapPanel Margin="0,10,0,0">
+                                <Button Content="Give all selected images this time" Click="ApplyTimeToSelected_Click"/>
+                                <Button Content="Use the folder default" Click="UseDefaultTime_Click" Margin="8,0,0,0"/>
+                            </WrapPanel>
+
+                            <TextBlock Text="Image grade" Style="{StaticResource SectionTitle}"/>
+                            <TextBlock Style="{StaticResource Hint}" Text="Applied on top of the folder grade. The output display shows each change as you make it."/>
+                            <CheckBox x:Name="IgnoreFolderGradeBox" Content="Ignore the folder grade for this image" Margin="0,10,0,0"
+                                      Checked="IgnoreFolderGrade_Changed" Unchecked="IgnoreFolderGrade_Changed"/>
+                            <WrapPanel Margin="0,10,0,14">
+                                <Button Content="Copy grade" Click="CopyGrade_Click"/>
+                                <Button Content="Paste to selected images" Click="PasteGrade_Click" Margin="8,0,0,0"/>
+                            </WrapPanel>
+                            <ContentControl x:Name="ImageGradeHost"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Folder -->
+                <TabItem x:Name="FolderTab" Header="Folder">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="FolderPanel" Margin="12,10,12,24" MaxWidth="1000" HorizontalAlignment="Left">
+                            <TextBlock Text="Output" Style="{StaticResource SectionTitle}" Margin="0,0,0,8"/>
+                            <StackPanel Orientation="Horizontal">
+                                <RadioButton x:Name="PositiveRadio" GroupName="Mode" Content="Positive" Checked="Mode_Checked"/>
+                                <RadioButton x:Name="NegativeRadio" GroupName="Mode" Content="Negative, for print stock" Margin="24,0,0,0" Checked="Mode_Checked"/>
+                            </StackPanel>
+                            <Border x:Name="NegativePanel" BorderBrush="{StaticResource RuleBrush}" BorderThickness="1" CornerRadius="6" Padding="16,12" Margin="0,12,0,0">
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource Hint}"
+                                               Text="Until a calibration profile exists, negative mode uses a simple print-stock model. Set the stock's contrast and density range, then balance colour with printer lights. Grade in positive terms: the grade describes the print you want."/>
+                                    <Grid Margin="0,12,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="150"/>
+                                            <ColumnDefinition Width="96"/>
+                                            <ColumnDefinition Width="96"/>
+                                            <ColumnDefinition Width="96"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Column="1" Text="Red" Style="{StaticResource Hint}"/>
+                                        <TextBlock Grid.Column="2" Text="Green" Style="{StaticResource Hint}"/>
+                                        <TextBlock Grid.Column="3" Text="Blue" Style="{StaticResource Hint}"/>
+                                        <TextBlock Grid.Row="1" Text="Print contrast" Style="{StaticResource FieldLabel}"/>
+                                        <TextBox Grid.Row="1" Grid.Column="1" x:Name="NegGamma0" Style="{StaticResource NumberBox}" Tag="neg.gamma.0" Margin="0,4"/>
+                                        <TextBox Grid.Row="1" Grid.Column="2" x:Name="NegGamma1" Style="{StaticResource NumberBox}" Tag="neg.gamma.1" Margin="0,4"/>
+                                        <TextBox Grid.Row="1" Grid.Column="3" x:Name="NegGamma2" Style="{StaticResource NumberBox}" Tag="neg.gamma.2" Margin="0,4"/>
+                                        <TextBlock Grid.Row="2" Text="Printer lights (points)" Style="{StaticResource FieldLabel}"/>
+                                        <TextBox Grid.Row="2" Grid.Column="1" x:Name="NegPoints0" Style="{StaticResource NumberBox}" Tag="neg.points.0" Margin="0,4"/>
+                                        <TextBox Grid.Row="2" Grid.Column="2" x:Name="NegPoints1" Style="{StaticResource NumberBox}" Tag="neg.points.1" Margin="0,4"/>
+                                        <TextBox Grid.Row="2" Grid.Column="3" x:Name="NegPoints2" Style="{StaticResource NumberBox}" Tag="neg.points.2" Margin="0,4"/>
+                                        <TextBlock Grid.Row="3" Text="Density range" Style="{StaticResource FieldLabel}"/>
+                                        <TextBox Grid.Row="3" Grid.Column="1" x:Name="NegDensityBox" Style="{StaticResource NumberBox}" Tag="neg.density" Margin="0,4"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Text="Source images" Style="{StaticResource SectionTitle}"/>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Encoding" Style="{StaticResource FieldLabel}" Width="110"/>
+                                <ComboBox x:Name="EncodingCombo" Width="220" SelectionChanged="FolderCombo_Changed"/>
+                            </StackPanel>
+
+                            <TextBlock Text="Orientation" Style="{StaticResource SectionTitle}"/>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Rotate" Style="{StaticResource FieldLabel}" Width="110"/>
+                                <ComboBox x:Name="RotateCombo" Width="200" SelectionChanged="FolderCombo_Changed"/>
+                                <CheckBox x:Name="FlipHBox" Content="Flip horizontally" Margin="24,0,0,0" Checked="Flip_Changed" Unchecked="Flip_Changed"/>
+                                <CheckBox x:Name="FlipVBox" Content="Flip vertically" Margin="16,0,0,0" Checked="Flip_Changed" Unchecked="Flip_Changed"/>
+                            </StackPanel>
+
+                            <TextBlock Text="Framing in the gate" Style="{StaticResource SectionTitle}"/>
+                            <WrapPanel>
+                                <TextBlock Text="Fit" Style="{StaticResource FieldLabel}" Width="110"/>
+                                <ComboBox x:Name="FitCombo" Width="200" SelectionChanged="FolderCombo_Changed"/>
+                                <TextBlock Text="Scale" Style="{StaticResource FieldLabel}" Margin="24,0,10,0"/>
+                                <TextBox x:Name="ScaleBox" Style="{StaticResource NumberBox}" Tag="frame.scale"/>
+                                <TextBlock Text="Offset X %" Style="{StaticResource FieldLabel}" Margin="24,0,10,0"/>
+                                <TextBox x:Name="OffsetXBox" Style="{StaticResource NumberBox}" Tag="frame.offx"/>
+                                <TextBlock Text="Y %" Style="{StaticResource FieldLabel}" Margin="16,0,10,0"/>
+                                <TextBox x:Name="OffsetYBox" Style="{StaticResource NumberBox}" Tag="frame.offy"/>
+                            </WrapPanel>
+
+                            <TextBlock Text="Default display time" Style="{StaticResource SectionTitle}"/>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBox x:Name="DefaultTimeBox" Style="{StaticResource NumberBox}" Tag="time.default" Width="110"/>
+                                <TextBlock Text="seconds, for images without a time of their own" Style="{StaticResource FieldLabel}" Margin="8,0,0,0"/>
+                            </StackPanel>
+
+                            <TextBlock Text="Folder grade" Style="{StaticResource SectionTitle}"/>
+                            <TextBlock Style="{StaticResource Hint}" Text="Applies to every image in the folder, under each image's own grade."/>
+                            <ContentControl x:Name="FolderGradeHost" Margin="0,14,0,0"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Station -->
+                <TabItem x:Name="StationTab" Header="Station">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="StationPanel" Margin="12,10,12,24" MaxWidth="1000" HorizontalAlignment="Left">
+                            <TextBlock Text="Monitor" Style="{StaticResource SectionTitle}" Margin="0,0,0,8"/>
+                            <WrapPanel>
+                                <TextBlock Text="Panel type" Style="{StaticResource FieldLabel}"/>
+                                <ComboBox x:Name="PanelCombo" Width="180" SelectionChanged="PanelCombo_Changed"/>
+                                <TextBlock Text="Gamma" Style="{StaticResource FieldLabel}" Margin="24,0,10,0"/>
+                                <TextBox x:Name="GammaBox" Style="{StaticResource NumberBox}" Tag="eotf"/>
+                                <TextBlock Text="Bit depth" Style="{StaticResource FieldLabel}" Margin="24,0,10,0"/>
+                                <ComboBox x:Name="BitDepthCombo" Width="110" SelectionChanged="BitDepth_Changed"/>
+                            </WrapPanel>
+                            <TextBlock x:Name="PanelAdviceText" Style="{StaticResource Hint}" Margin="0,12,0,0"/>
+
+                            <TextBlock Text="Camera gate" Style="{StaticResource SectionTitle}"/>
+                            <TextBlock Style="{StaticResource Hint}"
+                                       Text="The part of the screen the camera frames, in screen pixels. Images are fitted into it and the flat-field map covers it. Show the framing chart and line it up in the viewfinder."/>
+                            <WrapPanel Margin="0,10,0,0">
+                                <TextBlock Text="X" Style="{StaticResource FieldLabel}"/>
+                                <TextBox x:Name="GateXBox" Style="{StaticResource NumberBox}" Tag="gate.x"/>
+                                <TextBlock Text="Y" Style="{StaticResource FieldLabel}" Margin="16,0,10,0"/>
+                                <TextBox x:Name="GateYBox" Style="{StaticResource NumberBox}" Tag="gate.y"/>
+                                <TextBlock Text="Width" Style="{StaticResource FieldLabel}" Margin="16,0,10,0"/>
+                                <TextBox x:Name="GateWBox" Style="{StaticResource NumberBox}" Tag="gate.w"/>
+                                <TextBlock Text="Height" Style="{StaticResource FieldLabel}" Margin="16,0,10,0"/>
+                                <TextBox x:Name="GateHBox" Style="{StaticResource NumberBox}" Tag="gate.h"/>
+                                <Button Content="Use the whole screen" Click="FullScreenGate_Click" Margin="16,0,0,0"/>
+                                <ToggleButton x:Name="FramingToggle" Content="Show framing chart" Margin="8,0,0,0" Checked="Overlay_Changed" Unchecked="Overlay_Changed"/>
+                            </WrapPanel>
+
+                            <TextBlock Text="Flat field" Style="{StaticResource SectionTitle}"/>
+                            <CheckBox x:Name="FlatEnabledBox" Content="Correct light falloff and unevenness across the gate" Checked="FlatEnabled_Changed" Unchecked="FlatEnabled_Changed"/>
+                            <TextBlock x:Name="FlatInfoText" Style="{StaticResource Hint}" Margin="0,6,0,0"/>
+                            <WrapPanel Margin="0,10,0,0">
+                                <ToggleButton x:Name="FlatTargetToggle" Content="Show flat-field target" Checked="Overlay_Changed" Unchecked="Overlay_Changed"/>
+                                <TextBlock Text="Level" Style="{StaticResource FieldLabel}" Margin="16,0,8,0"/>
+                                <Slider x:Name="FlatLevelSlider" Width="160" Minimum="0.1" Maximum="1" Value="0.75" VerticalAlignment="Center" ValueChanged="FlatLevel_Changed"/>
+                                <TextBlock x:Name="FlatLevelText" Style="{StaticResource FieldLabel}" Width="44" Margin="8,0,0,0" Text="0.75"/>
+                                <CheckBox x:Name="FlatTargetCorrectedBox" Content="With the current correction, to check it" Margin="16,0,0,0" Checked="Preview_Changed" Unchecked="Preview_Changed"/>
+                            </WrapPanel>
+                            <WrapPanel Margin="0,10,0,0">
+                                <Button Content="Build map from a capture…" Click="BuildFlat_Click"/>
+                                <Button Content="Remove map" Click="RemoveFlat_Click" Margin="8,0,0,0"/>
+                            </WrapPanel>
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
+                                       Text="Show the target and photograph it through the taking lens, or expose a frame of film and scan it. Then build the map from that file. Keep the field well above clear film base everywhere. Rebuild when the gate, lens, aperture, focus or monitor settings change."/>
+
+                            <TextBlock Text="Pixel defects" Style="{StaticResource SectionTitle}"/>
+                            <CheckBox x:Name="DefectsEnabledBox" Content="Compensate marked defects using neighbouring pixels" Checked="DefectsEnabled_Changed" Unchecked="DefectsEnabled_Changed"/>
+                            <WrapPanel Margin="0,10,0,0">
+                                <ToggleButton x:Name="HuntToggle" Content="Hunt for defects" Checked="Overlay_Changed" Unchecked="Overlay_Changed"/>
+                                <TextBlock Text="Field" Style="{StaticResource FieldLabel}" Margin="16,0,8,0"/>
+                                <Button Content="White" Tag="1,1,1" Click="HuntField_Click"/>
+                                <Button Content="Black" Tag="0,0,0" Click="HuntField_Click" Margin="4,0,0,0"/>
+                                <Button Content="Red" Tag="1,0,0" Click="HuntField_Click" Margin="4,0,0,0"/>
+                                <Button Content="Green" Tag="0,1,0" Click="HuntField_Click" Margin="4,0,0,0"/>
+                                <Button Content="Blue" Tag="0,0,1" Click="HuntField_Click" Margin="4,0,0,0"/>
+                                <Button Content="Grey" Tag="0.5,0.5,0.5" Click="HuntField_Click" Margin="4,0,0,0"/>
+                                <CheckBox x:Name="HuntCorrectedBox" Content="Preview compensation" Margin="16,0,0,0" Checked="Preview_Changed" Unchecked="Preview_Changed"/>
+                            </WrapPanel>
+                            <WrapPanel Margin="0,8,0,0">
+                                <TextBlock Text="Cursor X" Style="{StaticResource FieldLabel}"/>
+                                <TextBox x:Name="CursorXBox" Style="{StaticResource NumberBox}" Tag="cursor.x"/>
+                                <TextBlock Text="Y" Style="{StaticResource FieldLabel}" Margin="16,0,10,0"/>
+                                <TextBox x:Name="CursorYBox" Style="{StaticResource NumberBox}" Tag="cursor.y"/>
+                                <TextBlock Style="{StaticResource Hint}" VerticalAlignment="Center" Margin="16,0,0,0"
+                                           Text="While hunting: arrow keys move 1 pixel, with Shift 10, with Ctrl 100. M marks a defect."/>
+                            </WrapPanel>
+                            <WrapPanel Margin="0,8,0,0">
+                                <ComboBox x:Name="DefectKindCombo" Width="140"/>
+                                <CheckBox x:Name="DefectRedBox" Content="Red" IsChecked="True" Margin="16,0,0,0"/>
+                                <CheckBox x:Name="DefectGreenBox" Content="Green" IsChecked="True" Margin="8,0,0,0"/>
+                                <CheckBox x:Name="DefectBlueBox" Content="Blue" IsChecked="True" Margin="8,0,0,0"/>
+                                <TextBlock Text="Level" Style="{StaticResource FieldLabel}" Margin="16,0,10,0"/>
+                                <TextBox x:Name="DefectLevelBox" Width="70" TextAlignment="Right" Text="1.0"/>
+                                <Button Content="Mark defect at cursor" Click="MarkDefect_Click" Margin="12,0,0,0"/>
+                            </WrapPanel>
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
+                                       Text="Level: for a stuck pixel, how bright it's stuck (0 to 1). For a weak pixel, the fraction of the light it still gives. Find defects with a loupe on the output screen; the ring is centred on the cursor pixel."/>
+                            <ListBox x:Name="DefectList" Height="150" Margin="0,8,0,8"/>
+                            <Button Content="Remove selected defect" Click="RemoveDefect_Click" HorizontalAlignment="Left"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Run -->
+                <TabItem x:Name="RunTab" Header="Run">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="12,10,12,24" MaxWidth="1000" HorizontalAlignment="Left">
+                            <Border x:Name="RunStateBorder" BorderBrush="{StaticResource RuleBrush}" BorderThickness="1" CornerRadius="6" Padding="20,14" MinWidth="560">
+                                <StackPanel>
+                                    <TextBlock x:Name="RunPhaseText" FontSize="30" FontWeight="Light" Text="Not running"/>
+                                    <TextBlock x:Name="RunDetailText" Style="{StaticResource Hint}" Margin="0,4,0,0"
+                                               Text="In run mode the screen stays black until a trigger arrives, shows the image for its time, then goes black and loads the next one."/>
+                                </StackPanel>
+                            </Border>
+                            <WrapPanel Margin="0,14,0,0">
+                                <TextBlock Text="Start at image" Style="{StaticResource FieldLabel}"/>
+                                <TextBox x:Name="StartAtBox" Width="70" TextAlignment="Right" Text="1"/>
+                                <Button x:Name="EnterRunButton" Content="Enter run mode" Margin="12,0,0,0" Click="EnterRun_Click"
+                                        Background="{StaticResource SafelightDeepBrush}" Foreground="White"/>
+                                <Button x:Name="ExitRunButton" Content="Exit run mode" Margin="8,0,0,0" Click="ExitRun_Click" IsEnabled="False"/>
+                                <Button x:Name="FireButton" Content="Trigger now" Margin="24,0,0,0" Click="Fire_Click" IsEnabled="False"/>
+                                <Button x:Name="AbortButton" Content="Abort exposure" Margin="8,0,0,0" Click="Abort_Click" IsEnabled="False"/>
+                            </WrapPanel>
+
+                            <TextBlock Text="Keyboard triggers" Style="{StaticResource SectionTitle}"/>
+                            <WrapPanel>
+                                <TextBlock Text="Next" Style="{StaticResource FieldLabel}"/>
+                                <TextBox x:Name="TriggerKeysBox" Width="220" KeyDown="Keys_KeyDown" LostFocus="Keys_LostFocus"/>
+                                <TextBlock Text="Abort" Style="{StaticResource FieldLabel}" Margin="24,0,10,0"/>
+                                <TextBox x:Name="AbortKeyBox" Width="120" KeyDown="Keys_KeyDown" LostFocus="Keys_LostFocus"/>
+                            </WrapPanel>
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
+                                       Text="Key names separated by commas, such as Space, Enter, PageDown or F13. Foot pedals and button boxes that act as keyboards work too. Keys trigger only in run mode, whichever window has focus."/>
+
+                            <TextBlock Text="Serial" Style="{StaticResource SectionTitle}"/>
+                            <WrapPanel>
+                                <ComboBox x:Name="SerialPortCombo" Width="140"/>
+                                <Button Content="Refresh" Margin="8,0,0,0" Click="RefreshPorts_Click"/>
+                                <ComboBox x:Name="BaudCombo" Width="130" Margin="16,0,0,0"/>
+                                <Button x:Name="SerialConnectButton" Content="Connect" Margin="8,0,0,0" Click="SerialConnect_Click"/>
+                                <CheckBox x:Name="SerialAutoBox" Content="Connect when FilmOut starts" Margin="16,0,0,0" Checked="SerialAuto_Changed" Unchecked="SerialAuto_Changed"/>
+                            </WrapPanel>
+                            <TextBlock x:Name="SerialStatusText" Style="{StaticResource Hint}" Margin="0,6,0,0" Text="Not connected"/>
+                            <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
+                                       Text="Commands: NEXT, GOTO n, BLACK, STATUS?, PING. Replies: ARMED n, ON n, OFF n seconds frames, DONE, STATUS, PONG, ERR message. Send NEXT only after ARMED. Open the shutter before NEXT and close it after OFF."/>
+
+                            <TextBlock Text="Log" Style="{StaticResource SectionTitle}"/>
+                            <ListBox x:Name="LogList" Height="280" FontFamily="Cascadia Mono, Consolas" FontSize="12"/>
+                            <TextBlock x:Name="RunLogPathText" Style="{StaticResource Hint}" Margin="0,6,0,0"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+            </TabControl>
+        </Grid>
+    </DockPanel>
+</Window>
