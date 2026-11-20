@@ -128,6 +128,7 @@
                                 <Button Content="Copy grade" Click="CopyGrade_Click"/>
                                 <Button Content="Paste to selected images" Click="PasteGrade_Click" Margin="8,0,0,0"/>
                             </WrapPanel>
+                            <TextBlock x:Name="OffsetTotalInfo" Style="{StaticResource Hint}" Margin="0,0,0,12"/>
                             <ContentControl x:Name="ImageGradeHost"/>
                         </StackPanel>
                     </ScrollViewer>

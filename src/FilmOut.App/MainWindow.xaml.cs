@@ -61,11 +61,13 @@ public partial class MainWindow : Window
         _imageGrade.GradeChanged += (_, _) =>
         {
             if (Selected is { } image) RowFor(image)?.Refresh(_job!, Hz);
+            UpdateOffsetTotal();
             JobChanged();
             PushSetupFrame();
         };
         _folderGrade.GradeChanged += (_, _) =>
         {
+            UpdateOffsetTotal(); // eweiojwefijowef
             JobChanged();
             PushSetupFrame();
         };
@@ -246,6 +248,7 @@ public partial class MainWindow : Window
             TimeInfo.Text = "";
             ImagePanel.IsEnabled = false;
             _imageGrade.Grade = new Grade();
+            OffsetTotalInfo.Text = "";
             return;
         }
 
@@ -256,8 +259,55 @@ public partial class MainWindow : Window
         if (!TimeBox.IsKeyboardFocusWithin) TimeBox.Text = _job.TimeFor(image).ToString("0.000", Invariant);
         IgnoreFolderGradeBox.IsChecked = image.Settings.IgnoreFolderGrade;
         _imageGrade.Grade = image.Settings.Grade;
+        UpdateOffsetTotal();
         UpdateTimeInfo(image);
     }
+
+    private void UpdateOffsetTotal()
+{
+    if (_job is null || Selected is not { } image)
+    {
+        OffsetTotalInfo.Text = "";
+        return;
+    }
+
+    bool ignored = image.Settings.IgnoreFolderGrade;
+    var folder = ignored ? new Grade() : _job.Settings.FolderGrade;
+    var own = image.Settings.Grade;
+
+    static bool Neutral(double[] values, double neutral) => values.All(v => v == neutral);
+    static string Stops(double v) => v.ToString("+0.00;-0.00;0.00", Invariant);
+    static string Ratio(double v) => v.ToString("0.000", Invariant);
+    static double GeoMean(double[] v) => Math.Pow(2, v.Select(x => Math.Log2(Math.Max(x, 1e-6))).Average());
+    static string Channels(double[] v, Func<double, string> f) => $"R {f(v[0])}   G {f(v[1])}   B {f(v[2])}";
+
+    // Offsets add; power and slope multiply (the editor's master for those is the geometric mean).
+    var offset = folder.OffsetStops.Zip(own.OffsetStops, (a, b) => a + b).ToArray();
+    var power = folder.Power.Zip(own.Power, (a, b) => a * b).ToArray();
+    var slope = folder.Slope.Zip(own.Slope, (a, b) => a * b).ToArray();
+
+    // Each total is exact only when nothing in between changes it.
+    bool folderSatContrastNeutral = folder.Saturation == 1 && folder.Contrast == 1;
+    bool offsetExact = folderSatContrastNeutral && Neutral(folder.Power, 1)
+                       && (Neutral(own.Slope, 1) || Neutral(folder.OffsetStops, 0));
+    bool slopeExact = folderSatContrastNeutral && Neutral(folder.Power, 1);
+    bool powerExact = folderSatContrastNeutral && Neutral(own.Slope, 1) && Neutral(own.OffsetStops, 0);
+
+    static string Mark(bool exact) => exact ? "" : "≈ ";
+
+    var lines = new List<string>();
+    if (ignored)
+        lines.Add("The folder grade is ignored for this image, so these are the image's own values.");
+    lines.Add($"{Mark(offsetExact)}Offset (stops): brightness {Stops(folder.OffsetStops.Average())} folder + {Stops(own.OffsetStops.Average())} image = {Stops(offset.Average())}   ({Channels(offset, Stops)})");
+    lines.Add($"{Mark(powerExact)}Power: master {Ratio(GeoMean(folder.Power))} folder × {Ratio(GeoMean(own.Power))} image = {Ratio(GeoMean(power))}   ({Channels(power, Ratio)})");
+    lines.Add($"{Mark(slopeExact)}Slope: master {Ratio(GeoMean(folder.Slope))} folder × {Ratio(GeoMean(own.Slope))} image = {Ratio(GeoMean(slope))}   ({Channels(slope, Ratio)})");
+    if (!(offsetExact && powerExact && slopeExact))
+        lines.Add("≈ means the two grades interact (for example the folder's power or contrast acts between them), so that total is a guide rather than an exact equivalent.");
+
+    OffsetTotalInfo.Text = string.Join("\n", lines);
+}
+
+
 
     private void UpdateTimeInfo(JobImage image)
     {
@@ -342,6 +392,7 @@ public partial class MainWindow : Window
         if (_suppress || Selected is not { } image) return;
         image.Settings.IgnoreFolderGrade = IgnoreFolderGradeBox.IsChecked == true;
         RowFor(image)?.Refresh(_job!, Hz);
+        UpdateOffsetTotal();
         JobChanged();
         PushSetupFrame();
     }
@@ -367,6 +418,7 @@ public partial class MainWindow : Window
             RowFor(image)?.Refresh(_job, Hz);
         }
         _imageGrade.Refresh();
+        UpdateOffsetTotal();
         JobChanged();
         PushSetupFrame();
         Status($"Pasted the grade to {targets.Count} image(s).");
